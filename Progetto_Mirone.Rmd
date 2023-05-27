@@ -1,0 +1,570 @@
+---
+title: "Political Views and Attitudes Towards Climate Change in Italy"
+subtitle: 'Data Science and Economics - Probabilistic Modeling'
+author: "Alessandro Mirone - 966880"
+date: '2023-01-04'
+header-includes:
+   - \usepackage{booktabs}
+   - \usepackage{sectsty} \allsectionsfont{\centering}
+output: 
+   pdf_document: 
+     latex_engine: xelatex
+     fig_caption: yes
+---
+
+![](unimi-768x258.png)
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+library(bnlearn)
+library(tidyverse)
+library(igraph)
+library(gRbase)
+library(Rgraphviz)
+library(gRain)
+library(knitr)
+library(latex2exp)
+library(ggpubr)
+
+setwd("E:/DSE flash/Probabilistic Modeling/Project")
+data<-read.csv("data.final.csv")
+data<-data[,-1]
+
+data[, c(3,5,6,8,9,10)] <- lapply(data[, c(3,5,6,8,9,10)], factor, levels=c('1', '2', '3','4','5'), ordered = T)
+data[, c(1,2,4,7)] <- lapply(data[, c(1,2,4,7)], factor, levels=c('1', '2', '3','4','5','55'), ordered = T)
+data$clmchng <- factor(data$clmchng, levels=c('Changing', 'Not changing'), ordered = F)
+data$wrclmch <- factor(data$wrclmch, levels=c('Worried', 'Moderately worried',"Not worried"), ordered = F)
+data$ccnthum <- factor(data$ccnthum, levels=c('Anthropic', 'Equally',"Natural"), ordered = F)
+data$gvsrdcc <- factor(data$gvsrdcc, levels=c("Not at all",'Very unlikely', 'Unlikely',"Possible","Likely","Very likely","Extremely"), ordered = T)
+data$lkredcc <- factor(data$lkredcc, levels=c("Not at all",'Very unlikely', 'Unlikely',"Possible","Likely","Very likely","Extremely"), ordered = T)
+data$lklmten <- factor(data$lklmten, levels=c("Not at all",'Very unlikely', 'Unlikely',"Possible","Likely","Very likely","Extremely"), ordered = T)
+data$ownrdcc <- factor(data$ownrdcc, levels=c("Not at all",'Very unlikely', 'Unlikely',"Possible","Likely","Very likely","Extremely"), ordered = T)
+data$psppipla <- factor(data$psppipla, levels=c('A great deal', 'A lot',"Some"), ordered = T)
+data$trstplt <- factor(data$trstplt, levels=c("Not at all",'Very little', 'Little',"Neutral","A bit","Very"), ordered = T)
+data$stfdem <- factor(data$stfdem, levels=c("Not at all",'Very little', 'Little',"Neutral","A bit","Very","Extremely"), ordered = T)
+data$trstep <- factor(data$trstep, levels=c("Not at all",'Very little', 'Little',"Neutral","A bit","Very","Extremely"), ordered = T)
+data$prtvtbit <- factor(data$prtvtbit, levels=c('sx', 'dx',"cdx","csx","center","m5s"), ordered = F)
+data$lrscale <- factor(data$lrscale, levels=c('Far left', 'Left',"Center-left","Center","Center-right","Right","Far right"), ordered = F)
+data$gndr <- factor(data$gndr, levels=c(1, 2), labels = c("Male","Female"), ordered = F)
+data$yrbrn <- factor(data$yrbrn, levels=c('63>', '63-31',"30-18"), ordered = F)
+data$region <- factor(data$region, levels=c('North', 'Center',"South/Isles"), ordered = F)
+data$edlvdit <- factor(data$edlvdit, levels=c('Elementary', "Superior","High school","University","Doctorate"), ordered = F)
+data$hinctnta <- factor(data$hinctnta, levels=c('Very low', "Low","Medium","High","Very high"), ordered = F)
+data<-drop_na(data)
+
+```
+
+### *Abstract*
+
+Inspired by similar works carried out recently in other European countries, this analysis pursuits the objective of investigating the relationship between Italian individuals' socio-political determinants, in particular party preference, and their desire for clean energy production, as well as their opinions regarding different possible policies to boost the adoption of renewable energetic sources. The aim is to investigate the connection between party preference and renewable energetic production and comment such relationship in order to verify the theoretic assumptions and empirical results of other researches with the same scope, to provide information about the type of policies proposals preferred by different social groups and possibly to identify a policy that can cross political boundaries and meet the favor of the majority of the Italian citizens. Results, while confirming the findings of the existing literature, also highlight the peculiarities of the Italian context with respect to this theme: political determinants do impact the preference for certain energetic sources, but less so than expected from previous findings. In particular, the relationship with local institutions seems to be a more important factor than the preference about national politics in explaining the opinions regarding the proposals with which the challenge of climate change could be tackled.
+
+### *Introduction*
+
+Since December 2019 European institutions have been proposing and enforcing a series of policies aimed at the reduction of the member-states' carbon emissions, a push for less polluting production lines and products and the transition towards a renewable energy market, with the intent of abandoning fossil fuels and non-renewable energy production in a foreseeable future[^1] (Ciucci, 2021)*.* While these guidelines, and the objectives they were created to achieve, have encountered the favor of both the European parliament and population (Karlstrøm and Ryghaug, 2013), single member-states are left in charge of creating and upholding energy projects and policies coherent with the objectives set by the European agenda. This has proven to be a more difficult task, which is leading to an increasing disparity between European states regarding the success of these endeavours. Incidentally, social scientists in Europe and the Unites States - in truth, all developed countries face this same task - have been concentrating on the evaluation of the factors leading to a successful reception and implementation of different nations' green energy objectives and clean energy production projects. In fact, while governments are increasingly interested in renewable energy projects (REPs) and the public generally holds a positive stance towards these proposals, it has been recorded a discrepancy between the general acceptance of renewables energetic sources and the actual implementation of REPs (Segreto et al. 2020). Following these analysis, several theories have been proposed to explain the reasons behind such observed difficulty, with the majority of them being location based theories (Schively, 2007), the most influential of which is the NIMBY (Not In My Backyard) thesis. The NIMBY theory "[...] in short claims that while support for renewables might be strong in general, this support can quickly evaporate when the development moves close to one's home." (Karlstrøm and Ryghaug; 2013). Critics of NIMBY have instead demonstrated that people's reasons to oppose REPs move beyond location based concerns and encompass several social and personal factors pertaining to individuals' interactions with social and political institutions (West et al., 2010; Upreti and van der Horst, 2004; Bell et al., 2005; Walker, 2008; Wüstenhagen et al., 2007a; Walker and Cass, 2007). This analysis stems from such alternative views with respect to location based theories and has the declared objective of analyzing individuals' socio-political determinants and their connection with the acceptance and preference for green energy policies in Italy, in order to compare its findings with the results from existing theory. At the same time, the second - and primary - objective, is to provide insights about the factors responsible for individuals' views regarding such policies in the Italian case, in order to provide useful information to policy makers for overcoming possible opposition to REPs by finding a common ground on which clean energy enforcing actions are more likely to encounter the favor of the whole population, or, at least, for identifying which proposals are more likely to be met favourably by each major social group identified by its socio-political determinants. As a final remark, it should be noted that the present work analyzes respondents' opinions towards climate policies rather than projects, like the construction of a renewable power plant. This should theoretically diminish further the effect of location based concerns, as respondents are not presented with a proposal impacting the territory in which they live. Moreover, the scope of this paper is not to confute NIMBY thesis or other location-based theories of resistance to REPs, but merely to compare the results of its findings with those of the empirical works justified by an analytic framework that is alternative to such theories.
+
+[^1]: [Renewable energy \| Fact Sheets on the European Union \| European Parliament (europa.eu)](https://www.europarl.europa.eu/factsheets/en/sheet/70/renewable-energy)
+
+### *Dataset and variables*
+
+Data are collected from the European Social Survey (ESS) website[^2], obtained via survey carried out in 2016. The tidied dataset for the universe Italy is composed of 448 observations without missing values and each row represents an Italian individual who casted a vote in the 2016 administrative elections; individuals that didn't or couldn't provide their preference were dropped from the dataset. The full list of the 28 observed categorical variables is presented below, and for each feature its coding is also listed. Finally, variables are split between variables of interest (or target variables), that represent respondents' opinions regarding clean energy production and green economy boosting policies, and socio-economic factors, which impact on the target variables is to be assessed inferentially by the analysis.
+
+[^2]: [Search European Social Survey (nsd.no)](https://ess-search.nsd.no/en/study/f8e11f55-0c14-4ab3-abde-96d3f14d3c76)
+
+*List of variables*
+
+-   *Targets*
+    -   **elgcoal** : "how much electricity in Italy should be generated from coal"
+    -   **elgngas** : "how much electricity in Italy should be generated from natural gas"
+    -   **elghydr** : "how much electricity in Italy should be generated from Hydroelectric sources"
+    -   **elgnuc** : "how much electricity in Italy should be generated from nuclear plants"
+    -   **elgsun** : "how much electricity in Italy should be generated from solar panels"
+    -   **elgwind** : "how much electricity in Italy should be generated from wind turbines"
+    -   **elgbio** : "how much electricity in Italy should be generated from biogas"
+    -   **inctxff** : "how much in favour of increasing taxes on fossil fuels to reduce climate change"
+    -   **sbsrnen** : "how much in favour of subsidising renewable energy to reduce climate change"
+    -   **banhhap** : "how much in favour of banning the sale of least efficient household appliances to reduce climate change"
+
+The first seven targets, that represents individuals' stance towards the production of renewable energy, were kept in their original coding, that is a scale from 1 to 5 where 1 = "A very large amount", 2 = "A large amount", 3 = "A medium amount", 4 = "A small amount", 5 = "None at all"; the code 55 stands for the answer "I have not heard of this energy source before". The last three targets, coded in the same scale as the first seven, signal the opinions regarding concrete policy proposals to reduce climate change; therefore 1 = "Strongly in favour", 2 = "Somewhat in favour", 3 = "Neither in favour nor against", 4 = "Somewhat against" and 5 = "Strongly against"
+
+-   *Factors*
+    -   **clmchng** : "Do you think world's climate is changing"; original multinomially distributed variable with four states: 1 = "Definitely changing", 2 = "Changing", 3 = "Not changing", 4 = "Definitely not changing". Recoded to a binomially distributed variable: 1\|2 = "Changing", 3\|4 = "Not changing".
+
+    -   **wrclmch** : "How worried about climate change"; original multinomially distributed variable with four states: 1 = "Not at all worried", 2 = "Not very worried", 3 = "Somewhat worried", 4 = "Very worried", 5 = "Extremely worried". Recoded to a multinomially distributed variable with three states: 1\|2 = "Not worried", 3 = "Moderately worried", 4\|5 = "Worried".
+
+    -   **ccnthum** : "Climate change is caused by natural processes, human activity, or both"; original multinomially distributed variable with six states: 1 = "Entirely by natural processes", 2 = "Mainly by natural processes", 3 = "About equally by natural processes and human activity", 4 = "Mainly by human activity", 5 = "Entirely by human activity", 55 = "I don't think climate change is happening". Recoded to a multinomially distributed variable with four states: 1\|2 = "Natural", 3 = "Equally", 4\|5 = "Anthropic", 55 = "Not happening"
+
+    -   **gvsrdcc** : "How likely do you think it is that governments in enough countries will take action that reduces climate change"; original multinomially distributed variable uses a scale from 0 to 10, where: 0 = "Not at all likely", 10 = "Extremely likely". Recoded to a multinomially distributed variable with seven states: 0 = "Not at all", 1\|2 = "Very unlikely", 3\|4 = "Unlikely", 5 = "Possible", 6\|7 = "Likely", 8\|9 = "Very likely", 10 = "Extremely".
+
+    -   **lkredcc** : "Imagine that large numbers of people limited their energy use. How likely do you think it is that this would reduce climate change"; original multinomially distributed variable had values on a scale from 0 to 10, where: 0 = "Not at all likely", 10 = "Extremely likely". Recoded to a multinomially distributed variable with seven states: 0 = "Not at all", 1\|2 = "Very unlikely", 3\|4 = "Unlikely", 5 = "Possible", 6\|7 = "Likely", 8\|9 = "Very likely", 10 = "Extremely".
+
+    -   **lklmten** : "How likely do you think it is that large numbers of people will limit their energy use to try to reduce climate change"; original multinomially distributed variable had values on a scale from 0 to 10, where: 0 = "Not at all likely", 10 = "Extremely likely". Recoded to a multinomially distributed variable with seven states: 0 = "Not at all", 1\|2 = "Very unlikely", 3\|4 = "Unlikely", 5 = "Possible", 6\|7 = "Likely", 8\|9 = "Very likely", 10 = "Extremely".
+
+    -   **ownrdcc** : "How likely do you think it is that limiting your own energy use would help reduce climate change"; original multinomially distributed variable with states on a scale from 0 to 10, where: 0 = "Not at all likely", 10 = "Extremely likely". Recoded to a multinomially distributed variable with seven states: 0 = "Not at all", 1\|2 = "Very unlikely", 3\|4 = "Unlikely", 5 = "Possible", 6\|7 = "Likely", 8\|9 = "Very likely", 10 = "Extremely".
+
+    -   **psppipla** : "How much would you say that the political system in Italy allows people like you to have an influence on politics". As for the first seven targets, the variable was originally coded in a scale from 1 to 5. In this case, however, the states were in reversed order with respect to the targets, that is: 1 = "Not at all" and 5 = "A great deal". The recoding simply reverted again the ordering such that it would be coherent with what was used for the targets, that is a scale from 1 to 5 where 1 = "A great deal", 2 = "A lot", 3 = "Some", 4 = "Very little", 5 = "Not at all".
+
+    -   **stfdem** : "How satisfied are you with the way democracy works in Italy"; original multinomially distributed variable used a scale from 0 to 10, where: 0 = "Extremely dissatisfied", 10 = "Extremely satisfied". Recoded to a multinomially distributed variable with seven states: 0 = "Not at all", 1\|2 = "Very little", 3\|4 = "Little", 5 = "Neutral", 6\|7 = "A bit", 8\|9 = "Very", 10 = "Extremely".
+
+    -   **trstplt** : "How much you personally trust politicians"; original multinomially distributed variable used a scale from 0 to 10, where: 0 = "No trust at all", 10 = "Complete trust". Recoded to a multinomially distributed variable with seven states: 0 = "Not at all", 1\|2 = "Very little", 3\|4 = "Little", 5 = "Neutral", 6\|7 = "A bit", 8\|9 = "Very", 10 = "Extremely".
+
+    -   **trstep** : "How much you personally trust the European parliament"; original multinomially distributed variable had states on a scale from 0 to 10, where: 0 = "No trust at all", 10 = "Complete trust". Recoded to a multinomially distributed variable with seven states: 0 = "Not at all", 1\|2 = "Very little", 3\|4 = "Little", 5 = "Neutral", 6\|7 = "A bit", 8\|9 = "Very", 10 = "Extremely".
+
+    -   **prtvtbit** : "Which party did you vote for in the last national election"; the original multinomially distributed variable, representing all parties that presented at the last national election (2013), had states: 1 = "Partito Democratico", 2 = "Sinistra Ecologia e Libertà", 3 = "Rivoluzione Civile", 4 = "Movimento 5 Stelle, 5 ="Scelta Civica", 6 = "UDC", 7 = "FLI", 8 = "Popolo delle Libertà", 9 = "Lega Nord, 10 ="Fratelli d'Italia", 11 = "Radicali Italiani", 12 = "FARE", 13 = "La destra", 14 = "Others". Recoded to a multinomially distributed variable with six states: 1\|2 = "csx", 3 = "sx", 4 = "m5s", 12\|6\|7\|5 = "center", 8\|13 = "cdx", 9\|10 = "dx"; the two remaining original categories "Others" and "Radicali Italiani" were dropped from the dataset due to the low number of occurences.
+
+    -   **lrscale** : "where would you place yourself on the Left-Right scale"; the original multinomially distributed variable was coded on a scale from 1 to 10, where: 0 = "Left", 10 = "Right". Recoded to a multinomial coding with seven states: 0 = "Far left", 1\|2 = "Left", 3\|4 = "Center-left", 5 = "Center", 6\|7 = "Center-right", 8\|9 = "Right", 10 = "Far right".
+
+    -   **gndr** : Gender; original binomial coding: 1 = "Male", 2 = "Female". The recoding just changed the numerical values to their character factors counterparts.
+
+    -   **yrbrn** : Year of birth; the original continuous numerical variable, which values were specified by $\lbrace yrbrn \in \mathbb{R} : 1930 \leq yrbrn \leq 2000 \rbrace$, was recoded to a categorical variable with three states: for $1930 \leq yrbrn < 1953$, yrbrn = "63\>", for $1953 \leq yrbrn < 1953$, yrbrn = "63-31" and finally for $1953 \leq yrbrn < 2000$, **yrbrn** = "30-18". Regarding the last category, note that all respondents with original value $1998 < yrbrn \leq 2000$ were dropped for the analysis as, by Italian laws, they weren't able to cast a vote
+
+    -   **region** : region in which the respondent lives; the original variable uses the NUTS 2 coding. Recoded to a multinomially distributed variable with three states:
+
+        "ITC1"\|"ITC2"\|"ITC3"\|"ITC4"\|"ITH1"\|"ITH2"\|"ITH3"\|"ITH4"\|"ITH5" = "North",
+
+        "ITI1"\|"ITI2"\|"ITI3"\|"ITI4"\|"ITF1"\|"ITF2" = "Center" and
+
+        "ITG1"\|"ITG2"\|"ITF3"\|"ITF4"\|"ITF5"\|"ITF6" = "South/Isles"
+
+    -   **edlvdit** : Highest level of education; The original coding for this feature was a multinomially distributed variable with 19 states, on a scale from 1 = "Senza titolo" (No education) to 18 = "Dottorato di ricerca" (PhD) while 19 = "Other". Recoded to a multinomially distributed variable with five states:
+
+        $edelvit \leq 4$ = "Elementary", $4 > edelvit \leq 7$ = "Superior", $7 > edelvit \leq 11$ = "High school", $11 > edelvit \leq 14$ = "University", $14 > edelvit \leq 18$ = "Doctorate". Observations with value $edelvit = 19$ were dropped from the analysis.
+
+    -   **hinctnta** : Household's total net income, all sources; original multinomially distributed variable coded on a scale from 1 to 10, where: 1 = "First decile", 10 = "Tenth decile". Recoded to a multinomially distributed variable with seven states: 1\|2 = "Very low", 3\|4 = "Low", 5\|6 = "Medium", 7\|8 = "High", 9\|10 = "Very high".
+
+All factors were recoded for the analysis in order to diminish the granularity and obtain more interpretable results, given also the small number of occurrences in the original categories. The utility of each factor is related to the general gnoseologic field to which it refers to; in this sense, it's possible to split the factors in three other categories:
+
+-   **Attitude towards climate change - clmchng, wrclmch, ccnthum, gvsrdcc, lkredcc, lklmten, ownrdcc:** these variables are thought to be related to the targets in lieu of the common topics, climate change. For example, it seems reasonable to expect that people that are more concerned about climate change would have a higher rate of approval for REPs with respect to people that aren't.
+
+-   **Politics - psppipla, stfdem, trstplt, trstep, prtvtbit, lrscale:** this set of variables is included in order to study the research question. Note also the inclusion of measures of trust in political institutions, a factor which significance was observed and demonstrated by several of the aforementioned studies.
+
+-   **Socio-demographics - gndr, yrbrn, region, edlvdit, hinctnta:** traditional socio-economic and demographics determinants. Previous studies had found no dependence between any of these variables and being in favour of REPs, with the exception of region, which was usually not recorded in the analysis.
+
+```{r marg, echo=FALSE, message=FALSE, warning=FALSE, cap="Variables' marginal distributions"}
+summary(data)
+```
+
+### *Methodology*
+
+In order to examine the research questions, data from the ESS are analyzed through a Bayesian Network, a particular type of probabilistic graphical model based on a Directed Acyclic Graph (DAG) ; four different algorithms for structure learning are implemented and compared to select the best model:
+
+-   Constraint-based algorithms
+    -   Grow-Shrink (GS)
+    -   Inter-IAMB
+-   Score-based algorithms
+    -   Hill-Climbing with BIC score function (HS-BIC)
+    -   Hill-Climbing with AIC score function (HS-AIC)
+
+The resulting graph is then used to provide inference about the conditional distributions of the model's variables by queries evaluated with the exact inference algorithm Belief Propagation. This method permits the analysis of marginals and conditional distributions of the variables of interest, so that is possible to isolate chosen factors and observe their interplay with the target variables.
+
+### *Structure learning*
+
+Each structure learning algorithm is run with and without prior assumptions, in order to compare the networks generated solely by the algorithms with the ones obtained also with information retained from the literature. The prior information can be expressed in terms of dependencies and independencies between variables,in particular;
+
+*Prior information: dependencies*
+
+-   ***edlvdit*** $\rightarrow$ ***hinctnta*** : As countless analysis and studies have shown, education is positively correlated with income.
+
+-   ***yrbrn*** $\rightarrow$ ***edlvdit*** : Another well-known fact is that younger generations tend to be better educated, given the increasing easiness of accessing higher education in developed countries with respect to older generations.
+
+*Prior information: independencies*
+
+Given the evidence from the researches considered to instruct this analysis[^3],
+
+[^3]: Karlstrøm and Ryghaug, 2013; Segreto *et al.* , 2020; PewResearchCenter, 2016 ; Jijie, Maxim, Roman, Covan, 2021.
+
+-   ***gndr, yrbrn*** and ***edlvdit*** are independent from the targets: As demonstrated by recent works in the literature (note: pewresearch, literature review italiana, norvegia), demographic factors, plus level of income, are not significant in explaining opposition to REPs.
+
+Moreover, it is also assumed that:
+
+-   Target variables can't influence other features; as the goal of the analysis is to observe the opposite effect, this direction of dependency is blocked by construct.
+
+-   Similarly, ***lrscale*** and ***prtvtbit*** can't be influenced by factors representing respondents' attitudes towards climate change; the reasoning is the same as for the target variables.
+
+-   ***gndr, yrbrn*** and ***region*** can't be dependent on any other variable.
+
+These assumptions can be verified by looking at the data even before fitting the network. First, we can look at the supposed dependencies:
+
+```{r prior plots, message=FALSE, warning=FALSE,fig.dim=c(7,5)}
+cbbPalette <- c("#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
+
+pr.plot1 <- ggplot(data, aes(edlvdit)) + geom_bar(aes(fill=hinctnta), color='black', position='fill') + 
+  scale_y_continuous(labels = scales::percent) + theme_bw() +
+  labs(x='', y='', fill='', title='Level of Income (deciles)\nby Education', caption=TeX(paste('p-value $\\chi^2$ test:', signif(chisq.test(data$edlvdit, data$hinctnta)$p.value, 3)))) +
+  scale_fill_manual(values=cbbPalette) + 
+  scale_x_discrete(labels=c('Elem.', 'Sup.', 'High\nschool','Uni.','Doc.'))+
+  theme(legend.position = 'right', plot.caption = element_text(hjust = 0.5, size=8))
+
+pr.plot2 <- ggplot(data, aes(yrbrn)) + geom_bar(aes(fill=edlvdit), color='black', position='fill') + 
+  scale_y_continuous(labels = scales::percent) + theme_bw() +
+  labs(x='', y='', fill='', title='Level of Education\nby Age', caption=TeX(paste('p-value $\\chi^2$ test:', signif(chisq.test(data$yrbrn, data$edlvdit)$p.value, 3)))) +
+  scale_fill_manual(values=cbbPalette) + theme(legend.position = 'right', plot.caption = element_text(hjust = 0.5, size=8))
+
+ggarrange(pr.plot1, pr.plot2, ncol=2)
+```
+
+and see that the assumptions are verified. The same can be done for the independencies:
+
+```{r prior independencies tests, message=FALSE, warning=FALSE, include=FALSE}
+gndr.coal<-table(data$elgcoal,data$gndr, dnn = c("Coal","Gender"))
+gndr.gas<-table(data$elgngas,data$gndr,dnn=c("Gas","Gender"))
+gndr.hydr<-table(data$elghydr,data$gndr,dnn = c("Hydro","Gender"))
+gndr.nuc<-table(data$elgnuc,data$gndr,dnn = c("Nuclear","Gender"))
+gndr.sun <-table(data$elgsun,data$gndr,dnn=c("Sun","Gender"))
+gndr.wind <-table(data$elgwind,data$gndr,dnn=c("Wind","Gender"))
+gndr.bio<-table(data$elgbio,data$gndr,dnn=c("Biogas","Gender"))
+gndr.inct<-table(data$inctxff,data$gndr,dnn=c("Tax","Gender"))
+gndr.sub<-table(data$sbsrnen,data$gndr,dnn=c("Subsidies","Gender"))
+gndr.ban<-table(data$banhhap,data$gndr,dnn=c("Risk","Gender"))
+
+chicoal1<-chisq.test(gndr.coal)
+chigas1<-chisq.test(gndr.gas)
+chihydr1<-chisq.test(gndr.hydr)
+chinuc1<-chisq.test(gndr.nuc)
+chisun1<-chisq.test(gndr.sun)
+chiwind1<-chisq.test(gndr.wind)
+chibio1<-chisq.test(gndr.bio)
+chiinc1<-chisq.test(gndr.inct)
+chisub1<-chisq.test(gndr.sub)
+chiban1v<-chisq.test(gndr.ban)
+
+chi.squared1<-c(chicoal1$statistic,chigas1$statistic,chihydr1$statistic,
+                chinuc1$statistic,chisun1$statistic,chiwind1$statistic,
+                chibio1$statistic,chiinc1$statistic,chisub1$statistic,
+                chiban1v$statistic)
+
+p.value1<-c(chicoal1$p.value,chigas1$p.value,chihydr1$p.value,
+  chinuc1$p.value,chisun1$p.value,chiwind1$p.value,
+  chibio1$p.value,chiinc1$p.value,chisub1$p.value,
+  chiban1v$p.value)
+
+sq1<-data.frame(chi.squared1,p.value1)
+
+
+yrbrn.coal<-table(data$elgcoal,data$yrbrn, dnn = c("Coal","yrbrn"))
+yrbrn.gas<-table(data$elgngas,data$yrbrn,dnn=c("Gas","yrbrn"))
+yrbrn.hydr<-table(data$elghydr,data$yrbrn,dnn = c("Hydro","yrbrn"))
+yrbrn.nuc<-table(data$elgnuc,data$yrbrn,dnn = c("Nuclear","yrbrn"))
+yrbrn.sun <-table(data$elgsun,data$yrbrn,dnn=c("Sun","yrbrn"))
+yrbrn.wind <-table(data$elgwind,data$yrbrn,dnn=c("Wind","yrbrn"))
+yrbrn.bio<-table(data$elgbio,data$yrbrn,dnn=c("Biogas","yrbrn"))
+yrbrn.inct<-table(data$inctxff,data$yrbrn,dnn=c("Tax","yrbrn"))
+yrbrn.sub<-table(data$sbsrnen,data$yrbrn,dnn=c("Subsidies","yrbrn"))
+yrbrn.ban<-table(data$banhhap,data$yrbrn,dnn=c("Risk","yrbrn"))
+
+chicoal2<-chisq.test(yrbrn.coal)
+chigas2<-chisq.test(yrbrn.gas)
+chihydr2<-chisq.test(yrbrn.hydr)
+chinuc2<-chisq.test(yrbrn.nuc)
+chisun2<-chisq.test(yrbrn.sun)
+chiwind2<-chisq.test(yrbrn.wind)
+chibio2<-chisq.test(yrbrn.bio)
+chiinc2<-chisq.test(yrbrn.inct)
+chisub2<-chisq.test(yrbrn.sub)
+chiban2v<-chisq.test(yrbrn.ban)
+
+chi.squared2<-c(chicoal2$statistic,chigas2$statistic,chihydr2$statistic,
+                chinuc2$statistic,chisun2$statistic,chiwind2$statistic,
+                chibio2$statistic,chiinc2$statistic,chisub2$statistic,
+                chiban2v$statistic)
+
+p.value2<-c(chicoal2$p.value,chigas2$p.value,chihydr2$p.value,
+            chinuc2$p.value,chisun2$p.value,chiwind2$p.value,
+            chibio2$p.value,chiinc2$p.value,chisub2$p.value,
+            chiban2v$p.value)
+
+sq2<-data.frame(chi.squared2,p.value2)
+
+
+edlvdit.coal<-table(data$elgcoal,data$edlvdit, dnn = c("Coal","edlvdit"))
+edlvdit.gas<-table(data$elgngas,data$edlvdit,dnn=c("Gas","edlvdit"))
+edlvdit.hydr<-table(data$elghydr,data$edlvdit,dnn = c("Hydro","edlvdit"))
+edlvdit.nuc<-table(data$elgnuc,data$edlvdit,dnn = c("Nuclear","edlvdit"))
+edlvdit.sun <-table(data$elgsun,data$edlvdit,dnn=c("Sun","edlvdit"))
+edlvdit.wind <-table(data$elgwind,data$edlvdit,dnn=c("Wind","edlvdit"))
+edlvdit.bio<-table(data$elgbio,data$edlvdit,dnn=c("Biogas","edlvdit"))
+edlvdit.inct<-table(data$inctxff,data$edlvdit,dnn=c("Tax","edlvdit"))
+edlvdit.sub<-table(data$sbsrnen,data$edlvdit,dnn=c("Subsidies","edlvdit"))
+edlvdit.ban<-table(data$banhhap,data$edlvdit,dnn=c("Risk","edlvdit"))
+
+chicoal3<-chisq.test(edlvdit.coal)
+chigas3<-chisq.test(edlvdit.gas)
+chihydr3<-chisq.test(edlvdit.hydr)
+chinuc3<-chisq.test(edlvdit.nuc)
+chisun3<-chisq.test(edlvdit.sun)
+chiwind3<-chisq.test(edlvdit.wind)
+chibio3<-chisq.test(edlvdit.bio)
+chiinc3<-chisq.test(edlvdit.inct)
+chisub3<-chisq.test(edlvdit.sub)
+chiban3v<-chisq.test(edlvdit.ban)
+
+chi.squared3<-c(chicoal3$statistic,chigas3$statistic,chihydr3$statistic,
+                chinuc3$statistic,chisun3$statistic,chiwind3$statistic,
+                chibio3$statistic,chiinc3$statistic,chisub3$statistic,
+                chiban3v$statistic)
+
+p.value3<-c(chicoal3$p.value,chigas3$p.value,chihydr3$p.value,
+            chinuc3$p.value,chisun3$p.value,chiwind3$p.value,
+            chibio3$p.value,chiinc3$p.value,chisub3$p.value,
+            chiban3v$p.value)
+
+sq3<-data.frame(chi.squared3,p.value3)
+
+
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, results='asis'}
+t1<-kable(sq1, col.names = c("Chi-squared", "p-value"), format = "latex", booktabs = TRUE)
+t2<-kable(sq2, col.names = c("Chi-squared", "p-value"),format = "latex", booktabs = TRUE)
+t3<-kable(sq3, col.names = c("Chi-squared", "p-value"), format = "latex", booktabs = TRUE)
+
+cat(c("\\begin{table}[!htb]
+    \\begin{minipage}{.3\\linewidth}
+      \\caption{gndr vs\nall targets}
+      \\centering",
+        t1,
+    "\\end{minipage}%
+    \\begin{minipage}{.3\\linewidth}
+      \\centering
+        \\caption{yrbrn vs\nall targets}",
+        t2,
+    "\\end{minipage}%
+    \\begin{minipage}{.3\\linewidth}
+      \\centering
+        \\caption{edlvdit vs\nall targets}",
+        t3,
+    "\\end{minipage}
+\\end{table}"
+))
+```
+
+\newpage
+
+Also in this case, it is possible to confirm almost all previous findings: the only two recorded cases of dependencies in this subset of factors is the observed dependency between age and the proposal of banning least energy efficient household appliances, and the one between Education level and the proposal of subsidizing renewable energies. In coherence with the research question, which requires the use of all the prior information in the model selection procedure, these two evidences will be disregarded.
+
+### *Model Selection*
+
+To select the best model, a 7-fold cross validation is performed for each algorithm, both with and without prior information. The conditional independence test for the constraint-based algorithms is the *mutual information* test, proportional to the log-likelihood ratio; for computing the score of the models obtained via cross-validation, an average of the *Log-likelihood loss* (also known as *negative entropy*) is computed over the 7 realizations (one for each test fold) for all models.
+
+The results are summarized by the figure below:
+
+```{r bl-wl, message=FALSE, warning=FALSE, include=FALSE}
+set.seed(422)
+
+#create blacklist and whitelist for models with prior knowledge
+
+bk<- c(colnames(data)[-24],colnames(data)[-25],colnames(data)[-26],
+       rep('gndr', 10), rep('yrbrn', 10), rep('edlvdit',10), rep('elgcoal',27),
+       rep('elgngas',27), rep('elghydr',27), rep('elgnuc',27),rep('elgsun',27),
+       rep('elgwind',27),rep('elgbio',27), rep('inctxff',27),rep('sbsrnen',27),
+       rep('banhhap',27),rep(c('clmchng','wrclmch','ccnthum','gvsrdcc','lkredcc','lklmten','ownrdcc'),2),
+       rep('gndr',27),rep('yrbrn',27),rep('region',27),rep(colnames(data)[1:10],3),
+       colnames(data)[-1],colnames(data)[-2],colnames(data)[-3],colnames(data)[-4],
+       colnames(data)[-5],colnames(data)[-6],colnames(data)[-7],colnames(data)[-8],
+       colnames(data)[-9],colnames(data)[-10],rep('lrscale',7),rep('prtvtbit',7) 
+       )
+bl <- matrix(bk, ncol=2, byrow=F, dimnames=list(NULL, c('from', 'to'))) #blacklist
+
+
+
+wl <- matrix(c('edlvdit','hinctnta','yrbrn','edlvdit'), ncol=2, byrow=T, dimnames=list(NULL, c('from', 'to'))) #whitelist
+
+```
+
+```{r fitting models, message=FALSE, warning=FALSE, include=FALSE}
+### 7-folds CROSS VALIDATION (negative entropy loss) ##############
+###without priors
+folds<-list(1:64,65:128,129:192,193:256,257:320,321:384,385:448)
+
+#constraint-based methods:
+#gs
+gs.np.cv<-bn.cv(data = data,'gs',loss = 'logl', method='custom-folds',
+                algorithm.args = list(test='mi'), folds=folds, runs = 10, k=7) 
+gs.np.cv
+#inter-IAMB
+iamb.np.cv<-bn.cv(data = data,'inter.iamb',loss = 'logl', method='custom-folds',
+                  algorithm.args = list(test='mi'), folds=folds, runs=10, k=7)
+iamb.np.cv
+#score-based methods:
+#hc with bic
+hc1.np.cv<-bn.cv(data = data,'hc',loss = 'logl', method='custom-folds',
+                algorithm.args = list(score='bic'), folds=folds, runs = 10, k=7) 
+hc1.np.cv
+#hc with aic
+hc2.np.cv<-bn.cv(data = data,'hc',loss = 'logl', method='custom-folds',
+                 algorithm.args = list(score='aic'), folds=folds, runs = 10, k=7) 
+hc2.np.cv #still the best model
+
+### with priors
+#constraint-based methods:
+#gs
+gs.pr.cv<-bn.cv(data = data,'gs',loss = 'logl', method='custom-folds',
+                algorithm.args = list(test='mi', whitelist = wl, blacklist = bl), 
+                folds=folds, runs = 10, k=7) 
+gs.pr.cv
+#inter-IAMB
+iamb.pr.cv<-bn.cv(data = data,'inter.iamb',loss = 'logl', method='custom-folds',
+                  algorithm.args = list(test='mi', whitelist = wl, blacklist = bl),
+                  folds=folds, runs=10, k=7)
+iamb.pr.cv
+#score-based methods:
+#hc with bic
+hc1.pr.cv<-bn.cv(data = data,'hc',loss = 'logl', method='custom-folds',
+                 algorithm.args = list(score='bic', whitelist = wl, blacklist = bl),
+                 folds=folds, runs = 10, k=7) 
+hc1.pr.cv
+#hc with aic
+hc2.pr.cv<-bn.cv(data = data,'hc',loss = 'logl', method='custom-folds',
+                 algorithm.args = list(score='aic', whitelist = wl, blacklist = bl),
+                 folds=folds, runs = 10, k=7) 
+hc2.pr.cv #the negative entropy for this model is a bit higher wrt to the same model
+#without priors, but the bic is actually lower
+```
+
+```{r cv plot, echo=FALSE, message=FALSE, warning=FALSE,fig.height=7, fig.asp=0.5, fig.height=7, out.width="50%"}
+par(mfrow = c(1, 2))
+plot(gs.np.cv, iamb.np.cv, hc1.np.cv, hc2.np.cv, 
+     xlab=c('Grow-Shrink', 'Inter-IAMB', 'Hill-Climbing\n(BIC)', 'Hill-Climbing\n(AIC)'), 
+     main='Without prior')
+
+plot(gs.pr.cv, iamb.pr.cv, hc1.pr.cv, hc2.pr.cv, 
+     xlab=c('Grow-Shrink', 'Inter-IAMB', 'Hill-Climbing\n(BIC)', 'Hill-Climbing\n(AIC)'), 
+     main='With prior')
+```
+
+Looking at the plot, it's evident that the Hill-climbing algorithm with AIC score performs better than all the alternatives, regardless of the prior specification. Results also indicate that, when unconstrained, algorithms tend to fit better the data, albeit not significantly: models without prior information consistently achieve better negative entropy scores, by a factor close to 0.5. However, having already proved the correctness of most of the prior assumptions, and given that, even when the log-likelihood shows that a model could be the best candidate, unconstrained models could provide implausible dependency structures, the model selected for the analysis is the one obtained with the Hill-climbing algorithm with AIC score and prior information.
+
+\newpage
+
+### *Graphical model and Inference*
+
+```{r model fitting, message=FALSE, warning=FALSE, include=FALSE}
+hc2.pr<-hc(data, score = "aic", whitelist = wl, blacklist = bl)
+am2.pr<-amat(hc2.pr) #adjacent matrix
+```
+
+```{r Graph plot, echo=FALSE, message=FALSE, warning=FALSE,fig.align = 'center', fig.keep='last'}
+options<-list(nodes = nodes(hc2.pr), arcs = arcs(hc2.pr), 
+                col = '#000000', textCol = 'white')
+plt<-graphviz.plot(hc2.pr, highlight = options)
+n.op<-nodeRenderInfo(plt)
+n.op$fill[colnames(data)[1:10]]<-'#58427C'
+n.op$fill[colnames(data)[11:17]]<-'#177245'
+n.op$fill[colnames(data)[18:23]]<-'#FFD300'
+n.op$fill[colnames(data)[24:28]]<-'#00B7EB'
+n.op$fontsize<-16
+nodeRenderInfo(plt)<-n.op
+renderGraph(plt)
+```
+
+In the Bayesian Network obtained, we can see targets in purple, Socio-demographics in light blue, attitudes towards climate change in green and political factors in yellow.
+
+***Dependencies***
+
+It's possible to highlight at least three interesting situations regarding the dependencies among the data.
+
+-   First, note that $psppipla \rightarrow elgbio$; this particular dependency has an interesting interpretation in the Italian case, as there have been many cases of corruption and scandals involving politicians regarding biogas energy plants. It seems plausible that people with higher faith in the political system could be more optimistic regarding this particular energetic source.
+
+-   Secondly, and coherently with the assumptions of the literature, $prtvtbit \rightarrow elgngas$; this is a prime example of the effect of party preference on renewable energies. Natural gas is a fossil fuel which use has been reduced by EU regulation, and liberals in Italy have been pushing to reopen the extraction lines, particularly in the southern coastal regions.
+
+-   Thirdly, it's interesting to note that $wrclmch \rightarrow inctxff, banhhap$ that is three out of two of the proposed policies are dependent from the level of concern regarding climate change rather than from political factors.
+
+```{r dependencies results plots, echo=FALSE, message=FALSE, warning=FALSE,fig.dim=c(7,3)}
+
+data<-data %>%
+  mutate(elgngas=replace(elgngas, elgngas == 55, NA)) %>%
+  mutate(elgbio=replace(elgbio, elgbio == 55, NA)) %>%
+  as.data.frame()
+data<-drop_na(data)
+
+dep1<-ggplot(data, aes(elgngas)) + 
+  geom_bar(aes(fill=prtvtbit), color='black', position='fill') + 
+  scale_y_continuous(labels = scales::percent) + 
+  theme_bw() + 
+  labs(x='', y='', fill='', title='Party Preference\nby Desire for Natural Gas Energy', caption=TeX(paste('p-value $\\chi^2$ test:', signif(chisq.test(data$prtvtbit, data$elgngas)$p.value, 3)))) +
+  scale_fill_manual(values=cbbPalette) + theme(legend.position = 'right', plot.caption = element_text(hjust = 0.5, size=10))
+dep1
+```
+
+***Independencies***
+
+-   An important piece of evidence to compare the Italian situation with the assumptions from the literature is the case of *elgnuc*: in fact it's possible to see that $elgnuc\bot prtvtbit\mid lrscale$; this can be explained with the fact that, while in recent years interest for nuclear energy went down in mainstream political discourse in Italy, it had been a major ideological divide for many years.
+
+-   $wrclmch\bot yrbrn\mid clmchng,region$ : the level of concern regarding climate change is independent from one's age, given the region in which he lives and his opinions regarding climate change, which suggest that, regardless of the year of birth, it's the simple awareness of the phenomenon that raises alarm.
+
+-   It's possible also to inspect other targets, for example, $inctxff \bot elvdit\mid region,yrbrn$; in the light of this statement, it can be inferred that the support for tax policies in order to fight climate change is distributed independently across all levels of education, given the region and year of birth of the respondents, that are more important factors in explaining the support itself.
+
+***Inference***
+
+Exploiting the graphical representation of the joint distribution of the data, queries can be made in order to infer conditional evidence, that is, by setting the states of a subset of variables, it's possible to retrieve information about a particular feature of interest. For example, by looking at how the desire for the production of biogas is distributed given different levels of trust in the representativeness of the Italian political system and the region of the respondent. The information contained in this plot confirms what was hypothesized by looking at the dependencies: it is evident that, while the difference between regions is not very significant, the distribution of respondents that don't want any energy plant fueled by biogas is well above the marginal when conditioned upon the level of perceived inclusiveness of the political system, while remaining below it for three of the other four recorded states. This is just one example of the many queries that can be done with this model; through it it's possible to answer the research questions in a satisfactory manner.
+
+```{r inf1, echo=FALSE, message=FALSE, warning=FALSE}
+final.mod<-bn.fit(hc2.pr,data = data)
+jt <- as.grain(final.mod)
+
+elgbio.mrg<-querygrain(jt, nodes='elgbio', type='marginal')$elgbio
+
+ev8.1 <- setFinding(jt, nodes = c('region','psppipla'), states = c('North','A great deal'))
+q8.1 <- querygrain(ev8.1, nodes = "elgbio",type = 'conditional')
+ev8.2 <- setFinding(jt, nodes = c('region','psppipla'), states = c('South/Isles','A great deal'))
+q8.2 <- querygrain(ev8.2, nodes = "elgbio",type = 'conditional')
+ev8.3 <- setFinding(jt, nodes = c('region','psppipla'), states = c('North','A lot'))
+q8.3 <- querygrain(ev8.3, nodes = "elgbio",type = 'conditional')
+ev8.4 <- setFinding(jt, nodes = c('region','psppipla'), states = c('South/Isles','A lot'))
+q8.4 <- querygrain(ev8.4, nodes = "elgbio",type = 'conditional')
+ev8.5 <- setFinding(jt, nodes = c('region','psppipla'), states = c('North','Some'))
+q8.5 <- querygrain(ev8.5, nodes = "elgbio",type = 'conditional')
+ev8.6 <- setFinding(jt, nodes = c('region','psppipla'), states = c('South/Isles','Some'))
+q8.6 <- querygrain(ev8.6, nodes = "elgbio",type = 'conditional')
+
+df<-data.frame(q8.1,q8.2,q8.3,q8.4,q8.5,q8.6,elgbio.mrg, states = c("A very large amount","A large amount","A medium amount","a small amount","None at all",""))
+df<-df[-6,]
+df2<-df%>%
+  pivot_longer(cols = colnames(df)[1:7]) %>%
+  filter(value!=0)
+df2$states<-factor(df2$states, levels = c("A very large amount","A large amount","A medium amount","a small amount","None at all"))
+df2$name<-factor(df2$name, levels = c("q8.1","q8.2","q8.3","q8.4","q8.5","q8.6","elgbio.mrg"))
+
+inf1<-ggplot(df2, aes(x=states)) + 
+  geom_bar(aes(y=value, fill=name), color='black', stat='identity', position='dodge') +
+  theme_bw() + 
+  labs(x='', y='Distribution', fill= "States") +
+  scale_fill_manual(labels=c("North\nHigh trust","South\nHigh trust", "North\nLess trust","South\nLess trust","North\nLeast trust","South\nLeast trust","Elgbio\nMarginal"),values=cbbPalette) +
+  scale_x_discrete(labels=c("A very large\namount","A large\namount","A medium\namount","a small\namount","None at all"))
+
+inf1
+```
+
+### *Conclusions*
+
+Given the evidence collected from the analysis, the questions posed at the beginning of this work can be answered: first of all, the assumptions of the theory proved correct, as demographic determinants proved to be independent from the targets; moreover, as observed by similar researches (PewResearchCenter, 2016; Karlstrøm and Ryghaug, 2013), wind and sun energetic sources are independently distributed with respect to party preference, but politics do have an impact on non-renewable energies in Italy, as was proven in the last part of this work. However, the Italian case also revealed its peculiarities with respect to other western countries; in fact, even if the analysis moved away from NIMBY theory, proofs of topographic factors in explaining the targets' distributions arose clearly from the data. Given the nature of the proposals examined, one possible explanation is that, in the case of Italy, politics have more of an impact when observed locally. In fact, a part from exemplary cases like nuclear and natural gas power sources, of which was already discussed, most factors were related to the region of the respondents; other explanatory variables, like education, were proven independent with the targets given the region; another piece of evidence in support of the theory for which Italy is a special blend of local interests and national politics when it comes to the influence of party and socio-economics determinants on the attitudes towards climate change.
+
+\newpage
+
+### *References*
+
+-   Bell, D. , Gray, T. , Haggett, C. , *The 'social gap ' in wind farm siting decisions: explanations and policy responses*. Environ. Polit. 14 (4), 460--477. 2005.
+
+-   Ciucci, M. , *Fact sheets on the European Union - Renewable Energy*; 2021.
+
+-   Karlstrøm, H. and Ryghaug, M. , *Public attitudes towards renewable energy technologies in Norway. The role of party preferences,* Elsevier, 2013.
+
+-   Jijie, D.-T. , Maxim, A. , Roman, T. , Ros, covan, M. , *Public Acceptance and Support of Renewable Energy in the North-East Development Region of Romania*. Energies 2021, 14, 5834. <https://doi.org/10.3390/en14185834>. 2021.
+
+-   PewResearchCenter, *The politics of Climate,* PewResearch, 2016.
+
+-   Schively, C. , *Understanding the NIMBY and LULU phenomena: reassessing our knowledge base and informing future research.* J. Plann. Lit. 21 (3), 255--266., 2007.
+
+-   Segreto, M. , Principe, L. , Desormeaux, A. , Torre, M. , Tomassetti , L. , Tratzi, P. , Paolini, V. and Petracchini, F. *Trends in Social Acceptance of Renewable Energy Across Europe - A Literature Review,* International Journal of Environmental research and Public Health, 2020.
+
+-   Upreti, B. R. , van der Horst, D. , *National renewable energy policy and local opposition in the UK: the failed development of a biomass electricity plant*. Biomass Bioenergy 26 (1), 61--69, 2004.
+
+-   Walker, G. , *What are the barriers and incentives for community-owned means of energy production and use?* Energy Policy 36 (12), 4401--4405. 2008.
+
+-   Walker, G. , Noel C. , *Carbon Reduction, 'The Public' and Renewable Energy: Engaging with Socio-Technical Configurations,* Area 39 (4) (December): 458--469. 2007.
+
+-   West, J. , Bailey, I. , Winter, M. , *Renewable energy policy and public perceptions of renewable energy: a cultural theory approach*. Energy Policy 38 (10), 5739--5748, 2010.
+
+-   Wüstenhagen, R. , Wolsink, M. , Bürer, M. J. , *Social acceptance of renewable energy innovation: an introduction to the concept.* Energy Policy 35 (5), 2683--2691. 2007.
